@@ -262,8 +262,232 @@ function App() {
     e.target.value = '';
   }, []);
 
-  // PART 1 ENDS HERE — render function continues in Part 2
-  // __PART2_PLACEHOLDER__
+  // ─── Sub-components ─────────────────────────────────────────────
+
+  // Transaction Form (Add / Edit)
+  function TransactionForm({ initial, onSubmit, onCancel }) {
+    const [form, setForm] = useState(initial || {
+      date: new Date().toISOString().split('T')[0],
+      description: '',
+      amount: '',
+      category: 'Other',
+      type: 'expense'
+    });
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      if (!form.description || !form.amount) return;
+      onSubmit({ ...form, amount: parseFloat(form.amount) });
+    };
+
+    const inputStyle = {
+      width: '100%', padding: '8px 12px', borderRadius: 8,
+      border: `1px solid ${darkMode ? '#4B5563' : '#D1D5DB'}`,
+      background: darkMode ? '#374151' : '#fff',
+      color: darkMode ? '#F9FAFB' : '#111827',
+      fontSize: 14, boxSizing: 'border-box'
+    };
+
+    const labelStyle = { display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13, color: darkMode ? '#D1D5DB' : '#374151' };
+
+    return (
+      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Date</label>
+            <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Type</label>
+            <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} style={inputStyle}>
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Description</label>
+          <input type="text" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="What was this for?" style={inputStyle} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Amount</label>
+            <input type="number" step="0.01" min="0" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0.00" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Category</label>
+            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} style={inputStyle}>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel} style={{
+            padding: '8px 16px', borderRadius: 8, border: `1px solid ${darkMode ? '#4B5563' : '#D1D5DB'}`,
+            background: 'transparent', color: darkMode ? '#D1D5DB' : '#6B7280', cursor: 'pointer'
+          }}>Cancel</button>
+          <button type="submit" style={{
+            padding: '8px 16px', borderRadius: 8, border: 'none',
+            background: '#4F46E5', color: '#fff', cursor: 'pointer', fontWeight: 600
+          }}>{ initial ? 'Update' : 'Add Transaction'}</button>
+        </div>
+      </form>
+    );
+  }
+
+  // Simple Bar Chart
+  function BarChart({ data, maxVal }) {
+    if (!data || data.length === 0) return <div style={{ color: darkMode ? '#9CA3AF' : '#6B7280', textAlign: 'center', padding: 20 }}>No data</div>;
+    const max = maxVal || Math.max(...data.map(d => d.value), 1);
+    return (
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 160, padding: '0 4px' }}>
+        {data.map((d, i) => (
+          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 10, color: darkMode ? '#D1D5DB' : '#6B7280' }}>
+              {formatCurrency(d.value, currency)}
+            </span>
+            <div style={{
+              width: '100%', maxWidth: 40,
+              height: `${Math.max((d.value / max) * 120, 4)}px`,
+              background: d.color || '#4F46E5',
+              borderRadius: '4px 4px 0 0',
+              transition: 'height 0.3s'
+            }} title={`${d.label}: ${formatCurrency(d.value, currency)}`} />
+            <span style={{ fontSize: 9, color: darkMode ? '#9CA3AF' : '#9CA3AF', textAlign: 'center', lineHeight: 1.1 }}>
+              {d.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Budget progress bars
+  function BudgetBars() {
+    return (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {CATEGORIES.map(cat => {
+          const spent = currentMonthData.byCategory[cat] || 0;
+          const budget = budgets[cat] || 0;
+          const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
+          const over = spent > budget && budget > 0;
+          return (
+            <div key={cat}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                <span style={{ color: darkMode ? '#E5E7EB' : '#374151', fontWeight: 500 }}>{cat}</span>
+                <span style={{ color: over ? '#EF4444' : (darkMode ? '#9CA3AF' : '#6B7280') }}>
+                  {formatCurrency(spent, currency)} / {formatCurrency(budget, currency)}
+                  {over && ' (Over!)'}
+                </span>
+              </div>
+              <div style={{ height: 8, borderRadius: 4, background: darkMode ? '#374151' : '#E5E7EB' }}>
+                <div style={{
+                  height: '100%', borderRadius: 4,
+                  width: `${pct}%`,
+                  background: over ? '#EF4444' : CATEGORY_COLORS[cat],
+                  transition: 'width 0.3s'
+                }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Donut Chart (CSS-based)
+  function DonutChart({ data }) {
+    const total = data.reduce((s, d) => s + d.value, 0);
+    if (total === 0) return <div style={{ color: darkMode ? '#9CA3AF' : '#6B7280', textAlign: 'center', padding: 20 }}>No data</div>;
+    let cumulative = 0;
+    const segments = data.filter(d => d.value > 0).map(d => {
+      const start = (cumulative / total) * 360;
+      cumulative += d.value;
+      const end = (cumulative / total) * 360;
+      return { ...d, start, end, pct: ((d.value / total) * 100).toFixed(1) };
+    });
+
+    const conicGradient = segments.map(s =>
+      `${s.color} ${s.start}deg ${s.end}deg`
+    ).join(', ');
+
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div style={{
+          width: 140, height: 140, borderRadius: '50%',
+          background: `conic-gradient(${conicGradient})`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            width: 80, height: 80, borderRadius: '50%',
+            background: darkMode ? '#1F2937' : '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexDirection: 'column'
+          }}>
+            <span style={{ fontSize: 11, color: darkMode ? '#9CA3AF' : '#6B7280' }}>Total</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: darkMode ? '#F9FAFB' : '#111827' }}>
+              {formatCurrency(total, currency)}
+            </span>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gap: 4 }}>
+          {segments.slice(0, 6).map(s => (
+            <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+              <span style={{ color: darkMode ? '#D1D5DB' : '#374151' }}>{s.label} ({s.pct}%)</span>
+            </div>
+          ))}
+          {segments.length > 6 && (
+            <span style={{ fontSize: 11, color: darkMode ? '#9CA3AF' : '#6B7280' }}>+{segments.length - 6} more</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Monthly trend data for bar chart
+  const trendData = useMemo(() => {
+    return availableMonths.slice(0, 6).reverse().map(m => ({
+      label: getMonthName(m).split(' ')[0],
+      value: monthlyData[m]?.expenses || 0,
+      color: m === selectedMonth ? '#4F46E5' : (darkMode ? '#6B7280' : '#D1D5DB')
+    }));
+  }, [availableMonths, monthlyData, selectedMonth, darkMode]);
+
+  // Category breakdown for donut chart
+  const categoryDonutData = useMemo(() => {
+    return CATEGORIES.map(c => ({
+      label: c,
+      value: currentMonthData.byCategory[c] || 0,
+      color: CATEGORY_COLORS[c]
+    })).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
+  }, [currentMonthData]);
+
+  // ─── Styles ────────────────────────────────────────────────────
+  const theme = {
+    bg: darkMode ? '#111827' : '#F3F4F6',
+    card: darkMode ? '#1F2937' : '#FFFFFF',
+    text: darkMode ? '#F9FAFB' : '#111827',
+    textSecondary: darkMode ? '#9CA3AF' : '#6B7280',
+    border: darkMode ? '#374151' : '#E5E7EB',
+  };
+
+  const cardStyle = {
+    background: theme.card, borderRadius: 12,
+    padding: 20, border: `1px solid ${theme.border}`,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+  };
+
+  const btnStyle = (active) => ({
+    padding: '8px 16px', borderRadius: 8, border: 'none',
+    background: active ? '#4F46E5' : (darkMode ? '#374151' : '#E5E7EB'),
+    color: active ? '#fff' : theme.text,
+    cursor: 'pointer', fontWeight: active ? 600 : 400, fontSize: 13,
+    transition: 'all 0.2s'
+  });
+
+  // PART 2 ENDS HERE — render/return JSX continues in Part 3
+  // __PART3_PLACEHOLDER__
 }
 
 export default App;
